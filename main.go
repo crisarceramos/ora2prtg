@@ -1,21 +1,22 @@
 package main
 
-import ()
-
 func main() {
 	oraDB := oracleDB{}
-	prtg := prtgXML{}
-	
+	errPrtg := errorXML{}
+
 	ses := oraDB.getOraSession()
-	if ses != nil {
+	if nil != ses {
 		refCursor := oraDB.executeOraSP(ses)
 		if refCursor.IsOpen() {
-			outputXMLResult(refCursor)
+			prtg := prtgXML{}
+			if prtg.outputXMLResult(refCursor) < 1 {
+				errPrtg.outputXMLError("Fetched 0 result!")
+			}
 		} else {
-			prtg.outputXMLError(true, "No result!", nil)
+			errPrtg.outputXMLError("Cursor not open: " + oraDB.mErr.Error())
 		}
 	} else {
-		prtg.outputXMLError(true, "Unable to get Oracle session!", nil)
+		errPrtg.outputXMLError("Unable to get Oracle session: " + oraDB.mErr.Error())
 	}
 
 	defer oraDB.closeOraSession()

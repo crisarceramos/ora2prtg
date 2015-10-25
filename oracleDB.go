@@ -1,21 +1,20 @@
 package main
 
 import (
-//	"os"
+	"errors"
 	"flag"
 	"strings"
+
 	"gopkg.in/rana/ora.v3"
 )
 
 type oracleDB struct {
 	//mStmt *ora.Stmt
-	mSes  *ora.Ses
-	mSrv  *ora.Srv
-	mEnv  *ora.Env
-	mErr  error
+	mSes *ora.Ses
+	mSrv *ora.Srv
+	mEnv *ora.Env
+	mErr error
 }
-
-
 
 var (
 	missingArgs string = ""
@@ -38,19 +37,16 @@ func init() {
 }
 
 func (oracleDB *oracleDB) closeOraSession() {
-	if oracleDB.mSes != nil {
+	if nil != oracleDB.mSes && oracleDB.mSes.IsOpen() {
 		oracleDB.mSes.Close()
 	}
-	if oracleDB.mSrv != nil {
-		oracleDB.mSrv.Close()	
+	if nil != oracleDB.mSrv && oracleDB.mSrv.IsOpen() {
+		oracleDB.mSrv.Close()
 	}
-	
-	if oracleDB.mEnv != nil {
-		oracleDB.mEnv.Close()	
+	if nil != oracleDB.mEnv && oracleDB.mEnv.IsOpen() {
+		oracleDB.mEnv.Close()
 	}
-	
 }
-	
 
 //returns the new session
 func (oracleDB *oracleDB) getOraSession() *ora.Ses {
@@ -58,7 +54,7 @@ func (oracleDB *oracleDB) getOraSession() *ora.Ses {
 
 	oracleDB.mEnv, oracleDB.mErr = ora.OpenEnv(nil)
 
-	if oracleDB.mErr == nil {
+	if nil == oracleDB.mErr {
 
 		srvCfg := ora.NewSrvCfg()
 		if *sid != "" {
@@ -72,7 +68,7 @@ func (oracleDB *oracleDB) getOraSession() *ora.Ses {
 
 		oracleDB.mSrv, oracleDB.mErr = oracleDB.mEnv.OpenSrv(srvCfg)
 		//defer srv.Close()
-		if oracleDB.mErr == nil {
+		if nil == oracleDB.mErr {
 			sesCfg := ora.NewSesCfg()
 			sesCfg.Username = *user
 			sesCfg.Password = *pass
@@ -87,17 +83,24 @@ func (oracleDB *oracleDB) getOraSession() *ora.Ses {
 //if ses is nill it will use the struc session mSes
 //returns a &ora.Rset{}
 func (oracleDB *oracleDB) executeOraSP(ses *ora.Ses) *ora.Rset {
-	if ses == nil {
+	if nil == ses {
 		ses = oracleDB.mSes
 	}
 
 	refCursor := &ora.Rset{}
-	stmt, err := ses.Prep("CALL " + *sp + "(:1, :2)")
+	stmt, err := ses.Prep("CALL " + *sp + "(:1, :STATNAME, :ACCESSGROUP, :INTMIN)")
 
-	if err == nil {
-		_, err := stmt.Exe(refCursor, *spPar)
-		if err != nil {
-			oracleDB.mErr = err
+	if nil == err {
+		//split param
+		var params = strings.Fields(*spPar)
+
+		if len(params) == 3 {
+			_, err := stmt.Exe(refCursor, params[0], params[1], params[2])
+			if nil != err {
+				oracleDB.mErr = err
+			}
+		} else {
+			oracleDB.mErr = errors.New("Incomplete SP parameter!")
 		}
 	} else {
 		oracleDB.mErr = err
@@ -105,8 +108,6 @@ func (oracleDB *oracleDB) executeOraSP(ses *ora.Ses) *ora.Rset {
 
 	return refCursor
 }
-
-
 
 func (oracleDB *oracleDB) buildDSNFromArgs() string {
 	var lDSN string = ""
@@ -144,5 +145,5 @@ func (oracleDB *oracleDB) buildDSNFromArgs() string {
 	}*/
 
 	return lDSN
-	
+
 }
